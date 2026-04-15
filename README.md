@@ -193,46 +193,51 @@ OPEN_STT_API_KEY=secret ./target/release/open-stt-server --model whisper-small -
 
 > **Note:** Metal (Apple Silicon GPU) acceleration is not available in Docker. macOS Docker does not support GPU passthrough for Metal. To use Metal acceleration, build and run natively on macOS with `--features metal`.
 
-Two image variants are provided.
+Three image variants are provided.
 
-| Variant | Dockerfile | Base | Notes |
-|---|---|---|---|
-| Debian slim | `Dockerfile.debian` | `debian:bookworm-slim` | Best compatibility |
-| Alpine | `Dockerfile.alpine` | `alpine:3.21` | Smaller final image |
+| Variant | Dockerfile | Notes |
+|---|---|---|
+| Debian slim | `Dockerfile.debian` | Default routeable deployment, best compatibility |
+| Alpine | `Dockerfile.alpine` | Smaller final image |
+| CUDA | `Dockerfile.cuda` | GPU-enabled deployment |
 
 ### Build manually
 
 ```bash
 # Debian
-docker build -f Dockerfile.debian -t open-stt-server:debian .
+docker build   -f Dockerfile.debian   --build-arg RUST_DEV_IMAGE=registry.hnrglobal.com/haydonryan/rust-dev-image   --build-arg RUST_DEV_IMAGE_TAG=latest   -t open-stt-server:debian .
 
 # Alpine
 docker build -f Dockerfile.alpine -t open-stt-server:alpine .
+
+# CUDA
+docker build -f Dockerfile.cuda -t open-stt-server:cuda .
 ```
 
 ### Run manually
 
 ```bash
-docker run -p 8080:8080 \
-  -v hf_cache:/root/.cache/huggingface \
-  -e OPEN_STT_MODELS=whisper-base \
-  -e OPEN_STT_DOWNLOAD=true \
-  open-stt-server:debian
+docker run -p 8080:8080   -v hf_cache:/root/.cache/huggingface   -e OPEN_STT_MODELS=whisper-base   -e OPEN_STT_DOWNLOAD=true   open-stt-server:debian
 ```
 
 ### Docker Compose
 
-A `docker-compose.yml` is included with both variants available as profiles.
+`docker-compose.yml` now follows the Nucleus-style pattern for the default Debian service: parameterized build inputs, health checks, and Traefik routing on the external `backend` network.
 
 ```bash
+export RUST_DEV_IMAGE_BACKEND=registry.hnrglobal.com/haydonryan/rust-dev-image
+export RUST_DEV_IMAGE_BACKEND_TAG=latest
+export OPEN_STT_IMAGE=open-stt-server:debian
+export OPEN_STT_HOST=stt.lab.hnrglobal.com
+
 # Start the Debian variant (default)
-docker compose --profile default up
+docker compose --profile default up --build
 
 # Start the Alpine variant
-docker compose --profile alpine up
+docker compose --profile alpine up --build
 
-# Override the model and port
-OPEN_STT_MODELS=whisper-small OPEN_STT_PORT=9000 docker compose --profile default up
+# Start the CUDA variant
+docker compose --profile cuda up --build
 ```
 
 Create a `.env` file to persist your configuration:
@@ -241,7 +246,15 @@ Create a `.env` file to persist your configuration:
 OPEN_STT_MODELS=whisper-base
 OPEN_STT_PORT=8080
 OPEN_STT_API_KEY=your-secret-key
+OPEN_STT_HOST=stt.lab.hnrglobal.com
 RUST_LOG=info
+```
+
+Quick verification:
+
+```bash
+curl -fsS https://stt.lab.hnrglobal.com/health
+curl -fsS https://stt.lab.hnrglobal.com/v1/models
 ```
 
 Model weights are stored in a named Docker volume (`hf_cache`) and survive container restarts.
