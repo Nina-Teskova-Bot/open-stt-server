@@ -22,3 +22,19 @@ install:
 
 docker-build:
     ./scripts/docker-build.sh
+
+
+docker-deploy:
+    COMPOSE_FILE=docker-compose.yml
+    if [ -f compose.yaml ]; then
+    COMPOSE_FILE=compose.yaml
+    elif [ -f compose.yml ]; then
+    COMPOSE_FILE=compose.yml
+    elif [ -f docker-compose.yaml ]; then
+    COMPOSE_FILE=docker-compose.yaml
+    fi
+    if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose -f "$COMPOSE_FILE" up -d --build
+    else
+    docker compose -f "$COMPOSE_FILE" up -d --build
+    fi
